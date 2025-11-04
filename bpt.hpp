@@ -22,6 +22,7 @@ struct Key {
     int cmp(const Key& o) const { return strcmp(str, o.str); }
     bool operator<(const Key& o) const { return cmp(o) < 0; }
     bool operator>(const Key& o) const { return cmp(o) > 0; }
+    bool operator<=(const Key& o) const { return cmp(o) <= 0; }
     bool operator==(const Key& o) const { return cmp(o) == 0; }
 };
 
@@ -165,7 +166,7 @@ private:
                     writeNode(pos, nd);
                     return true;
                 }
-            }
+                }
             return false;
         }
         
@@ -232,7 +233,8 @@ public:
         Node nd;
         readNode(pos, nd);
         
-        // Navigate to leftmost leaf that could contain the key
+        // Navigate to LEFTMOST leaf that could contain key
+        // Use strictly greater to ensure we go left when equal
         while (!nd.leaf) {
             int i = 0;
             while (i < nd.n && sk > nd.keys[i].key) i++;
@@ -240,32 +242,25 @@ public:
             readNode(pos, nd);
         }
         
-        // Now we're at a leaf, scan leaves from left
-        // Find the starting position
-        int start = -1;
-        for (int i = 0; i < nd.n; i++) {
-            if (nd.keys[i].key == sk) {
-                start = i;
-                break;
-            }
-        }
-        
-        if (start >= 0) {
-            // Found at least one match
-            for (int i = start; i < nd.n && nd.keys[i].key == sk; i++) {
-                res.push_back(nd.keys[i].val);
+        // Scan through leaves collecting matching values
+        while (true) {
+            for (int i = 0; i < nd.n; i++) {
+                if (nd.keys[i].key == sk) {
+                    res.push_back(nd.keys[i].val);
+                }
             }
             
-            // Continue to next leaves
-            while (nd.next >= 0) {
-                pos = nd.next;
-                readNode(pos, nd);
-                int i = 0;
-                while (i < nd.n && nd.keys[i].key == sk) {
-                    res.push_back(nd.keys[i].val);
-                    i++;
+            // Check next leaf if exists
+            if (nd.next >= 0) {
+                int nextPos = nd.next;
+                readNode(nextPos, nd);
+                // If first key in next leaf is greater, we're done
+                if (nd.n > 0 && nd.keys[0].key > sk) {
+                    break;
                 }
-                if (i == 0 || i < nd.n) break; // No more matches
+                pos = nextPos;
+            } else {
+                break;
             }
         }
         
