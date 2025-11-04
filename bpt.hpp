@@ -166,7 +166,7 @@ private:
                     writeNode(pos, nd);
                     return true;
                 }
-                }
+            }
             return false;
         }
         
@@ -234,7 +234,6 @@ public:
         readNode(pos, nd);
         
         // Navigate to LEFTMOST leaf that could contain key
-        // Use strictly greater to ensure we go left when equal
         while (!nd.leaf) {
             int i = 0;
             while (i < nd.n && sk > nd.keys[i].key) i++;
@@ -242,28 +241,28 @@ public:
             readNode(pos, nd);
         }
         
-        // Scan through leaves collecting matching values
-        while (true) {
+        // Scan through leaves - limit iterations for safety
+        int maxLeaves = 10000; // Safety limit
+        while (maxLeaves-- > 0) {
             for (int i = 0; i < nd.n; i++) {
                 if (nd.keys[i].key == sk) {
                     res.push_back(nd.keys[i].val);
+                } else if (nd.keys[i].key > sk && !res.empty()) {
+                    // Found all matches
+                    goto done;
                 }
             }
             
-            // Check next leaf if exists
+            // Move to next leaf if exists
             if (nd.next >= 0) {
-                int nextPos = nd.next;
-                readNode(nextPos, nd);
-                // If first key in next leaf is greater, we're done
-                if (nd.n > 0 && nd.keys[0].key > sk) {
-                    break;
-                }
-                pos = nextPos;
+                pos = nd.next;
+                readNode(pos, nd);
             } else {
                 break;
             }
         }
         
+        done:
         sort(res.begin(), res.end());
         return res;
     }
