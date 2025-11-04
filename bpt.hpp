@@ -6,11 +6,10 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <iostream>
 
 using namespace std;
 
-const int M = 100; // Order of B+ tree  
+const int M = 100;
 const int MAX_KEY = 65;
 
 struct Key {
@@ -22,6 +21,7 @@ struct Key {
     }
     int cmp(const Key& o) const { return strcmp(str, o.str); }
     bool operator<(const Key& o) const { return cmp(o) < 0; }
+    bool operator>(const Key& o) const { return cmp(o) > 0; }
     bool operator==(const Key& o) const { return cmp(o) == 0; }
 };
 
@@ -41,10 +41,10 @@ struct Record {
 
 struct Node {
     bool leaf;
-    int n; // number of keys
-    int next; // next leaf pointer
+    int n;
+    int next;
     Record keys[M];
-    int ch[M + 1]; // children
+    int ch[M + 1];
     
     Node() : leaf(true), n(0), next(-1) {
         for (int i = 0; i <= M; i++) ch[i] = -1;
@@ -94,17 +94,13 @@ private:
         }
         if (!c.leaf) nw.ch[nw.n] = c.ch[c.n];
         
+        int nwPos = newNode();
         if (c.leaf) {
             nw.next = c.next;
-            int nwPos = newNode();
             c.next = nwPos;
-            writeNode(nwPos, nw);
-        } else {
-            int nwPos = newNode();
-            writeNode(nwPos, nw);
         }
-        
         c.n = mid;
+        writeNode(nwPos, nw);
         
         for (int i = p.n; i > idx; i--) {
             p.keys[i] = p.keys[i - 1];
@@ -112,7 +108,7 @@ private:
         }
         
         p.keys[idx] = nw.keys[0];
-        p.ch[idx + 1] = c.leaf ? c.next : nodeCnt - 1;
+        p.ch[idx + 1] = nwPos;
         p.n++;
         
         writeNode(p.ch[idx], c);
@@ -124,7 +120,6 @@ private:
         readNode(pos, nd);
         
         if (nd.leaf) {
-            // Check duplicate
             for (int i = 0; i < nd.n; i++) {
                 if (nd.keys[i] == rec) return;
             }
@@ -138,9 +133,8 @@ private:
             nd.n++;
             writeNode(pos, nd);
         } else {
-            int i = nd.n - 1;
-            while (i >= 0 && rec.key < nd.keys[i].key) i--;
-            i++;
+            int i = 0;
+            while (i < nd.n && !(rec.key < nd.keys[i].key)) i++;
             
             int cpos = nd.ch[i];
             Node c;
@@ -149,7 +143,8 @@ private:
             if (c.n == M) {
                 split(pos, i);
                 readNode(pos, nd);
-                if (!(rec.key < nd.keys[i].key)) i++;
+                i = 0;
+                while (i < nd.n && !(rec.key < nd.keys[i].key)) i++;
                 cpos = nd.ch[i];
             }
             insertNF(cpos, rec);
@@ -237,33 +232,40 @@ public:
         Node nd;
         readNode(pos, nd);
         
+        // Navigate to leftmost leaf that could contain the key
         while (!nd.leaf) {
             int i = 0;
-            while (i < nd.n && !(sk < nd.keys[i].key)) i++;
+            while (i < nd.n && sk > nd.keys[i].key) i++;
             pos = nd.ch[i];
             readNode(pos, nd);
         }
         
-        // Search in current and next leaves
-        while (pos >= 0) {
-            bool found = false;
-            for (int i = 0; i < nd.n; i++) {
-                if (nd.keys[i].key == sk) {
-                    res.push_back(nd.keys[i].val);
-                    found = true;
-                } else if (found) {
-                    // Keys are sorted, no more matches
-                    break;
-                }
+        // Now we're at a leaf, scan leaves from left
+        // Find the starting position
+        int start = -1;
+        for (int i = 0; i < nd.n; i++) {
+            if (nd.keys[i].key == sk) {
+                start = i;
+                break;
+            }
+        }
+        
+        if (start >= 0) {
+            // Found at least one match
+            for (int i = start; i < nd.n && nd.keys[i].key == sk; i++) {
+                res.push_back(nd.keys[i].val);
             }
             
-            if (nd.next >= 0) {
+            // Continue to next leaves
+            while (nd.next >= 0) {
                 pos = nd.next;
                 readNode(pos, nd);
-                // Check if first key matches
-                if (nd.n == 0 || !(nd.keys[0].key == sk)) break;
-            } else {
-                break;
+                int i = 0;
+                while (i < nd.n && nd.keys[i].key == sk) {
+                    res.push_back(nd.keys[i].val);
+                    i++;
+                }
+                if (i == 0 || i < nd.n) break; // No more matches
             }
         }
         
