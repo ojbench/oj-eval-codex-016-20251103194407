@@ -233,7 +233,7 @@ public:
         Node nd;
         readNode(pos, nd);
         
-        // Navigate to LEFTMOST leaf that could contain key
+        // Navigate to LEFTMOST leaf
         while (!nd.leaf) {
             int i = 0;
             while (i < nd.n && sk > nd.keys[i].key) i++;
@@ -241,25 +241,20 @@ public:
             readNode(pos, nd);
         }
         
-        // Scan through leaves - limit iterations for safety
-        int maxLeaves = 10000; // Safety limit
-        while (maxLeaves-- > 0) {
+        // Now scan leaves until we see a key > sk  
+        bool foundAny = false;
+        while (pos >= 0) {
             for (int i = 0; i < nd.n; i++) {
                 if (nd.keys[i].key == sk) {
                     res.push_back(nd.keys[i].val);
-                } else if (nd.keys[i].key > sk && !res.empty()) {
-                    // Found all matches
-                    goto done;
+                    foundAny = true;
+                } else if (nd.keys[i].key > sk) {
+                    if (foundAny) goto done;
                 }
             }
-            
-            // Move to next leaf if exists
-            if (nd.next >= 0) {
-                pos = nd.next;
-                readNode(pos, nd);
-            } else {
-                break;
-            }
+            pos = nd.next;
+            if (pos < 0) break;
+            readNode(pos, nd);
         }
         
         done:
