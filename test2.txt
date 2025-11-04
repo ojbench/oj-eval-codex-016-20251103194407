@@ -1,0 +1,6 @@
+5
+insert test1 100
+insert test1 200
+insert test2 300
+find test1
+find test2
